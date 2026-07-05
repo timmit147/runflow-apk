@@ -1,0 +1,43 @@
+name: Setup Capacitor (RunFlow)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Init Capacitor (only if not exists)
+        run: |
+          if [ ! -f capacitor.config.json ]; then
+            npx cap init RunFlow com.runflow.app
+          fi
+
+      - name: Add Android (only if not exists)
+        run: |
+          if [ ! -d android ]; then
+            npx cap add android
+          fi
+
+      - name: Sync project
+        run: npx cap sync android
+
+      - name: Commit generated native project
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add .
+          git commit -m "chore: initialize Capacitor Android project" || echo "No changes"
+          git push
