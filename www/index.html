@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RunFlow Test</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui;
+      background: #0b1220;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      flex-direction: column;
+    }
+
+    button {
+      padding: 15px 20px;
+      font-size: 18px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+    }
+
+    #log {
+      margin-top: 20px;
+      font-size: 14px;
+      opacity: 0.8;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>🚀 RunFlow Test App</h1>
+
+  <button onclick="getLocation()">📍 Test GPS</button>
+
+  <div id="log">Klik om GPS te testen</div>
+
+  <script>
+    function getLocation() {
+      const log = document.getElementById("log");
+
+      if (!navigator.geolocation) {
+        log.innerText = "Geolocation not supported";
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          log.innerText =
+            "Lat: " + pos.coords.latitude +
+            "\nLon: " + pos.coords.longitude +
+            "\nAccuracy: " + pos.coords.accuracy + "m";
+        },
+        (err) => {
+          log.innerText = "Error: " + err.message;
+        },
+        { enableHighAccuracy: true }
+      );
+    }
+  </script>
+
+</body>
+</html>
