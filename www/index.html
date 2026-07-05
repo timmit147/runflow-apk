@@ -382,37 +382,33 @@ document.getElementById("exportBtn").onclick = async () => {
     const runs = JSON.parse(localStorage.getItem("runs") || "[]");
     const run = runs[activeRunIndex];
 
+    if (!run) {
+        alert("Geen run gevonden");
+        return;
+    }
+
     const filename = `runflow-${run.start}.json`;
-    const data = JSON.stringify(run);
+    const data = JSON.stringify(run, null, 2);
 
     const Capacitor = window.Capacitor;
+
     if (!Capacitor?.Plugins?.Filesystem) {
         alert("Filesystem plugin niet beschikbaar");
         return;
     }
 
     try {
-        // 1. Opslaan in app storage (werkt altijd op Android 11+)
         await Capacitor.Plugins.Filesystem.writeFile({
             path: filename,
             data: data,
-            directory: Capacitor.Plugins.Filesystem.Directory.Data
+            directory: Capacitor.Plugins.Filesystem.Directory.Documents
         });
 
-        // 2. Daarna delen via Android share menu
-        if (Capacitor.Plugins.Share) {
-            await Capacitor.Plugins.Share.share({
-                title: "RunFlow export",
-                text: "Mijn hardloopsessie",
-                url: filename
-            });
-        } else {
-            alert("Opgeslagen: " + filename);
-        }
+        alert("✔ Export gelukt!\nBestand opgeslagen in Documents:\n" + filename);
 
     } catch (e) {
         console.error(e);
-        alert("Export mislukt");
+        alert("Export mislukt: " + e.message);
     }
 };
 
