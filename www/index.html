@@ -32,7 +32,7 @@ html, body { height: 100%; margin: 0; background: #0b1220; font-family: system-u
 #routeMap { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
 .info { position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%); width: 85%; max-width: 400px; text-align: left; font-size: 13px; background: rgba(0,0,0,0.85); padding: 15px; border-radius: 12px; line-height: 1.5; display: none; z-index: 500; backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.1); }
 
-/* Leaflet Popup Styling voor donkere modus */
+/* Leaflet Popup Styling */
 .leaflet-popup-content-wrapper { background: rgba(0,0,0,0.85); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; }
 .leaflet-popup-tip { background: rgba(0,0,0,0.85); }
 .leaflet-popup-content { margin: 10px; font-family: system-ui; font-size: 13px; line-height: 1.5; }
@@ -102,11 +102,7 @@ function handleGpsFix(raw){
       const firstPoint = { lat: raw.lat, lon: raw.lon, t: 0 };
       tempRun.points.push(firstPoint);
       lastConfirmedPoint = firstPoint;
-      
-      if(liveMap && running) {
-          liveMap.setView([raw.lat, raw.lon], 17);
-          liveMarker.setLatLng([raw.lat, raw.lon]);
-      }
+      if(liveMap && running) { liveMap.setView([raw.lat, raw.lon], 17); liveMarker.setLatLng([raw.lat, raw.lon]); }
   }
 
   const accLimit = stopMode ? ACCURACY_MAX_STATIONARY : ACCURACY_MAX_MOVING;
@@ -200,12 +196,7 @@ async function startRun() {
           requestPermissions: true,
           stale: false,
           distanceFilter: 0,
-          androidOptions: {
-            foregroundService: true,
-            notificationTitle: "RunFlow is actief",
-            notificationText: "GPS tracking loopt op de achtergrond...",
-            notificationIcon: "mipmap/ic_launcher"
-          }
+          androidOptions: { foregroundService: true, notificationTitle: "RunFlow is actief", notificationText: "GPS tracking loopt op de achtergrond...", notificationIcon: "mipmap/ic_launcher" }
       }, (location, error) => {
           if (error) return;
           handleGpsFix({ lat: location.latitude, lon: location.longitude, accuracy: location.accuracy, speed: location.speed, heading: location.bearing, timestamp: location.time });
@@ -217,15 +208,11 @@ async function startRun() {
     }, (err) => console.error(err), { enableHighAccuracy: true });
   }
 
-  interval = setInterval(()=>{
-    document.getElementById("timer").innerText = formatTime(Date.now() - startTime);
-  }, 1000);
+  interval = setInterval(()=>{ document.getElementById("timer").innerText = formatTime(Date.now() - startTime); }, 1000);
 }
 
 async function toggleRun(){
-  if(!running){
-    startRun();
-  } else {
+  if(!running){ startRun(); } else {
     running = false;
     clearInterval(interval);
     
@@ -237,22 +224,16 @@ async function toggleRun(){
     if (webWatchId !== null) { navigator.geolocation.clearWatch(webWatchId); webWatchId = null; }
     
     tempRun.end = Date.now();
-    
-    if(tempRun.points.length === 0 && refLat !== null) {
-        tempRun.points.push({lat: refLat, lon: refLon, t: 0});
-    }
+    if(tempRun.points.length === 0 && refLat !== null) { tempRun.points.push({lat: refLat, lon: refLon, t: 0}); }
     
     if(tempRun.points.length > 0) {
         let runs = JSON.parse(localStorage.getItem("runs")||"[]");
         runs.unshift(tempRun);
         localStorage.setItem("runs", JSON.stringify(runs));
-    } else {
-        alert("Geen GPS punten gevonden. Sessie niet opgeslagen.");
-    }
+    } else { alert("Geen GPS punten gevonden. Sessie niet opgeslagen."); }
     
     const btn = document.getElementById("btn");
-    btn.innerText = "START";
-    btn.classList.remove("stop");
+    btn.innerText = "START"; btn.classList.remove("stop");
     document.getElementById("timer").innerText = "00:00:00";
     nav("routes");
   }
@@ -263,20 +244,15 @@ function nav(screen){
   document.querySelectorAll(".screen").forEach(x=>x.classList.remove("active"));
   const target = document.getElementById(screen);
   if(target) target.classList.add("active");
-  
   document.getElementById("navBtn").innerText = (screen === "run") ? "Routes" : "Home";
   
-  // Knoppen tonen/verbergen op basis van scherm
   document.getElementById("importBtn").style.display = (screen === 'routes') ? 'block' : 'none';
   document.getElementById("pointsBtn").style.display = (screen === 'view') ? 'block' : 'none';
   document.getElementById("exportBtn").style.display = (screen === 'view') ? 'block' : 'none';
   document.getElementById("deleteBtn").style.display = (screen === 'view') ? 'block' : 'none';
   
-  // Reset de points-weergave als we weggaan
   if(screen !== 'view' && pointsLayerGroup && map) {
-      pointsLayerGroup.clearLayers();
-      showingPoints = false;
-      document.getElementById("pointsBtn").classList.remove("on");
+      pointsLayerGroup.clearLayers(); showingPoints = false; document.getElementById("pointsBtn").classList.remove("on");
   }
   
   if(screen === "routes") loadRuns();
@@ -293,10 +269,7 @@ function loadRuns(){
   const listEl = document.getElementById("list");
   listEl.innerHTML = "";
   let runs = JSON.parse(localStorage.getItem("runs")||"[]");
-  if(runs.length === 0) {
-    listEl.innerHTML = "<div style='text-align:center; opacity:0.5; margin-top:20px;'>Nog geen hardloopsessies.</div>";
-    return;
-  }
+  if(runs.length === 0) { listEl.innerHTML = "<div style='text-align:center; opacity:0.5; margin-top:20px;'>Nog geen hardloopsessies.</div>"; return; }
   runs.forEach((run, index) => {
     const item = document.createElement("div");
     item.className = "item";
@@ -320,11 +293,7 @@ function showRun(index){
   }
   
   markers.forEach(m => map.removeLayer(m));
-  markers = [];
-  pointsLayerGroup.clearLayers();
-  showingPoints = false;
-  document.getElementById("pointsBtn").classList.remove("on");
-  
+  markers = []; pointsLayerGroup.clearLayers(); showingPoints = false; document.getElementById("pointsBtn").classList.remove("on");
   setTimeout(() => { map.invalidateSize(); }, 100);
 
   if(run.points && run.points.length > 0) {
@@ -339,9 +308,7 @@ function showRun(index){
         const endIcon = L.divIcon({ html: `<svg width="24" height="24"><circle cx="12" cy="12" r="10" fill="#ef4444" stroke="#000" stroke-width="2"/></svg>`, className: '', iconSize: [24,24], iconAnchor: [12,12] });
         markers.push(L.marker(latlngs[latlngs.length-1], {icon: endIcon}).addTo(map));
     }
-  } else {
-    polyline.setLatLngs([]);
-  }
+  } else { polyline.setLatLngs([]); }
   
   let totalDist = 0;
   if(run.points) { for(let i=1; i<run.points.length; i++) { totalDist += getDistance(run.points[i-1], run.points[i]); } }
@@ -358,7 +325,6 @@ function showRun(index){
 /* === PUNTEN TOGGLE LOGICA === */
 document.getElementById("pointsBtn").onclick = () => {
   if(activeRunIndex === null) return;
-  
   showingPoints = !showingPoints;
   const btn = document.getElementById("pointsBtn");
   
@@ -370,22 +336,8 @@ document.getElementById("pointsBtn").onclick = () => {
     
     run.points.forEach((p, i) => {
         if(i > 0) cumulativeDist += getDistance(run.points[i-1], p);
-        
-        const circle = L.circleMarker([p.lat, p.lon], {
-            radius: 6,
-            color: '#ffffff',
-            weight: 2,
-            fillColor: '#3b82f6',
-            fillOpacity: 0.9
-        });
-        
-        const popupText = `
-            <strong>Punt ${i + 1}</strong><br>
-            Tijd bereikt: ${formatTime(p.t)}<br>
-            Afstand tot nu: ${(cumulativeDist/1000).toFixed(2)} km
-        `;
-        
-        circle.bindPopup(popupText);
+        const circle = L.circleMarker([p.lat, p.lon], { radius: 6, color: '#ffffff', weight: 2, fillColor: '#3b82f6', fillOpacity: 0.9 });
+        circle.bindPopup(`<strong>Punt ${i + 1}</strong><br>Tijd bereikt: ${formatTime(p.t)}<br>Afstand tot nu: ${(cumulativeDist/1000).toFixed(2)} km`);
         pointsLayerGroup.addLayer(circle);
     });
   } else {
@@ -394,7 +346,7 @@ document.getElementById("pointsBtn").onclick = () => {
   }
 };
 
-/* === DATA BEHEER (Delete, Import, Export) === */
+/* === DATA BEHEER (Delete, Import, Export via Filesystem) === */
 document.getElementById("deleteBtn").onclick = () => {
   if(activeRunIndex !== null && confirm("Sessie definitief verwijderen?")) {
     let runs = JSON.parse(localStorage.getItem("runs")||"[]");
@@ -404,40 +356,6 @@ document.getElementById("deleteBtn").onclick = () => {
     nav("routes");
   }
 };
-
-document.getElementById("exportBtn").onclick = () => {
-  if(activeRunIndex !== null) {
-    let runs = JSON.parse(localStorage.getItem("runs")||"[]");
-    const run = runs[activeRunIndex];
-    const dataStr = JSON.stringify(run);
-    const fileName = `runflow-${run.start}.json`;
-    
-    // Probeer Native Share (werkt goed op mobiele Android app)
-    if (navigator.canShare) {
-        const file = new File([dataStr], fileName, { type: 'application/json' });
-        navigator.share({
-            title: 'RunFlow Route',
-            text: 'Mijn hardlooproute vanuit RunFlow',
-            files: [file]
-        }).catch(err => {
-            console.log("Share geannuleerd of mislukt, probeer web-download", err);
-            fallbackDownload(dataStr, fileName);
-        });
-    } else {
-        fallbackDownload(dataStr, fileName);
-    }
-  }
-};
-
-function fallbackDownload(dataStr, fileName) {
-    const encodedData = "data:text/json;charset=utf-8," + encodeURIComponent(dataStr);
-    const dlAnchor = document.createElement('a');
-    dlAnchor.setAttribute("href", encodedData);
-    dlAnchor.setAttribute("download", fileName);
-    document.body.appendChild(dlAnchor);
-    dlAnchor.click();
-    dlAnchor.remove();
-}
 
 document.getElementById("importBtn").onclick = () => { document.getElementById("importFile").click(); };
 document.getElementById("importFile").onchange = (e) => {
@@ -453,10 +371,46 @@ document.getElementById("importFile").onchange = (e) => {
       localStorage.setItem("runs", JSON.stringify(runs));
       loadRuns();
     } catch(err) { alert("Ongeldig RunFlow JSON bestand."); }
-    // Reset file input zodat je hetzelfde bestand later nog eens kunt inladen
     e.target.value = '';
   };
   reader.readAsText(file);
+};
+
+document.getElementById("exportBtn").onclick = async () => {
+  if (activeRunIndex === null) return;
+  
+  let runs = JSON.parse(localStorage.getItem("runs")||"[]");
+  const run = runs[activeRunIndex];
+  const fileName = `runflow-${run.start}.json`;
+  const dataStr = JSON.stringify(run);
+
+  const Capacitor = window.Capacitor;
+  
+  if (Capacitor && Capacitor.Plugins && Capacitor.Plugins.Filesystem) {
+    try {
+      const { Filesystem, Directory, Encoding } = Capacitor.Plugins;
+      await Filesystem.writeFile({
+        path: fileName,
+        data: dataStr,
+        directory: Directory.Documents,
+        encoding: Encoding.UTF8
+      });
+      alert(`✅ Bestand succesvol opgeslagen!\n\nKijk in de 'Documenten' map op je telefoon naar:\n${fileName}`);
+    } catch (error) {
+      alert("❌ Opslaan mislukt. Zorg dat de app Opslagrechten heeft in Android.\nError: " + error.message);
+    }
+  } else {
+    // Fallback voor testen in PC browser
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const dlAnchor = document.createElement('a');
+    dlAnchor.href = url;
+    dlAnchor.setAttribute("download", fileName);
+    document.body.appendChild(dlAnchor);
+    dlAnchor.click();
+    document.body.removeChild(dlAnchor);
+    URL.revokeObjectURL(url);
+  }
 };
 
 // Start de app
