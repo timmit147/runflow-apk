@@ -384,34 +384,37 @@ document.getElementById("exportBtn").onclick = async () => {
   const fileName = `runflow-${run.start}.json`;
   const dataStr = JSON.stringify(run);
 
-  try {
-    const Capacitor = window.Capacitor;
-    const Filesystem = Capacitor.Plugins.Filesystem;
-    
-    // We gebruiken nu een direct getal voor de map (0 = Documents) 
-    // om te voorkomen dat de app zoekt naar een 'Directory' object dat hij niet kan vinden.
-    await Filesystem.writeFile({
-      path: fileName,
-      data: dataStr,
-      directory: 0, 
-      encoding: 'utf8'
-    });
-    
-    alert("✅ Bestand succesvol opgeslagen in Documenten!");
-    
-  } catch (error) {
-    console.error("Filesystem error:", error);
-    // Fallback naar de browser-download als het opslaan niet lukt
-    const blob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const dl = document.createElement('a');
-    dl.href = url;
-    dl.download = fileName;
-    dl.click();
-    URL.revokeObjectURL(url);
-    alert("⚠️ Direct opslaan mislukt, browser-download gestart.");
+  // Maak een 'File' object aan dat je telefoon begrijpt
+  const file = new File([dataStr], fileName, { type: "application/json" });
+
+  // Gebruik de Web Share API (native Android deelmenu)
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: 'RunFlow Export',
+        text: 'Hier is mijn hardloopsessie'
+      });
+    } catch (err) {
+      console.error("Delen mislukt", err);
+      // Fallback naar download als delen geannuleerd wordt
+      downloadBlob(dataStr, fileName);
+    }
+  } else {
+    // Fallback als delen niet wordt ondersteund
+    downloadBlob(dataStr, fileName);
   }
 };
+
+function downloadBlob(dataStr, fileName) {
+  const blob = new Blob([dataStr], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const dl = document.createElement('a');
+  dl.href = url;
+  dl.download = fileName;
+  dl.click();
+  URL.revokeObjectURL(url);
+}
 
 
 
