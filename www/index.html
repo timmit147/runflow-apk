@@ -30,7 +30,12 @@ html, body { height: 100%; margin: 0; background: #0b1220; font-family: system-u
 .list { width: 90%; max-width: 400px; display: flex; flex-direction: column; gap: 10px; max-height: 75vh; overflow-y: auto; z-index: 10; padding-top: 60px; }
 .item { padding: 15px; border-radius: 10px; background: rgba(255,255,255,0.1); cursor: pointer; display: flex; justify-content: space-between; user-select: none; -webkit-user-select: none; }
 #routeMap { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
-.info { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); width: 85%; max-width: 400px; text-align: left; font-size: 14px; background: rgba(0,0,0,0.85); padding: 20px; border-radius: 12px; line-height: 1.6; display: none; z-index: 500; backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.1); }
+.info { position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%); width: 85%; max-width: 400px; text-align: left; font-size: 13px; background: rgba(0,0,0,0.85); padding: 15px; border-radius: 12px; line-height: 1.5; display: none; z-index: 500; backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.1); }
+
+/* Leaflet Popup Styling voor donkere modus */
+.leaflet-popup-content-wrapper { background: rgba(0,0,0,0.85); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; }
+.leaflet-popup-tip { background: rgba(0,0,0,0.85); }
+.leaflet-popup-content { margin: 10px; font-family: system-ui; font-size: 13px; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -39,6 +44,7 @@ html, body { height: 100%; margin: 0; background: #0b1220; font-family: system-u
   <div id="navBtn" class="btn">Routes</div>
   <div class="actions">
     <div id="importBtn" class="btn" style="display:none;">Import</div>
+    <div id="pointsBtn" class="btn" style="display:none;">Points</div>
     <div id="exportBtn" class="btn" style="display:none;">Export</div>
     <div id="deleteBtn" class="btn" style="display:none;">Delete</div>
   </div>
@@ -72,6 +78,9 @@ let refLat = null, refLon = null, kalmanX, kalmanY, fixBuffer = [], lastConfirme
 let watcherId = null, webWatchId = null, map = null, polyline = null, activeRunIndex = null, markers = [];
 let liveMap = null, livePolyline = null, liveMarker = null;
 
+let pointsLayerGroup = null;
+let showingPoints = false;
+
 const SATELLITE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 
 /* === HELPER FUNCTIES === */
@@ -88,7 +97,6 @@ function formatTime(ms){ let totalSec = Math.max(0, Math.floor(ms/1000)); let h 
 
 /* === GPS DATA VERWERKEN === */
 function handleGpsFix(raw){
-  // Direct eerste punt vastleggen voor live map en zekerheid
   if(tempRun && tempRun.points.length === 0) {
       refLat = raw.lat; refLon = raw.lon;
       const firstPoint = { lat: raw.lat, lon: raw.lon, t: 0 };
@@ -142,7 +150,6 @@ function handleGpsFix(raw){
           tempRun.points.push(filtered); 
           lastConfirmedPoint = filtered; 
           
-          // Teken live op de kaart
           if(liveMap && running) {
               const ll = [filtered.lat, filtered.lon];
               const currentLatLngs = livePolyline.getLatLngs();
@@ -172,9 +179,8 @@ async function startRun() {
   tempRun = { start: startTime, points: [] };
   refLat = null; refLon = null; kalmanX = makeKalman(); kalmanY = makeKalman(); fixBuffer = []; lastConfirmedPoint = null; lastFilteredForBearing = null; bearingBuffer = []; movementStreak = 0; stopMode = false; stopAnchor = null; stillSince = null;
 
-  // Initialiseer live map als dat nog niet is gebeurd
   if(!liveMap) {
-      liveMap = L.map('runMap', { zoomControl: false, attributionControl: false }).setView([52.1326, 5.2913], 15); // Default start NL
+      liveMap = L.map('runMap', { zoomControl: false, attributionControl: false }).setView([52.1326, 5.2913], 15);
       L.tileLayer(SATELLITE_URL, { maxZoom: 19 }).addTo(liveMap);
       livePolyline = L.polyline([], {color: '#4ade80', weight: 6, opacity: 0.9}).addTo(liveMap);
       const liveIcon = L.divIcon({ html: `<svg width="18" height="18"><circle cx="9" cy="9" r="7" fill="#3b82f6" stroke="#fff" stroke-width="2"/></svg>`, className: '', iconSize: [18,18], iconAnchor: [9,9] });
@@ -184,7 +190,6 @@ async function startRun() {
       liveMap.invalidateSize();
   }
 
-  // Background Geolocation Plugin
   const Capacitor = window.Capacitor;
   if (Capacitor && Capacitor.Plugins && Capacitor.Plugins.BackgroundGeolocation) {
     const BackgroundGeolocation = Capacitor.Plugins.BackgroundGeolocation;
@@ -196,7 +201,7 @@ async function startRun() {
           stale: false,
           distanceFilter: 0,
           androidOptions: {
-            foregroundService: true, // Zorgt voor de notificatie in de achtergrond
+            foregroundService: true,
             notificationTitle: "RunFlow is actief",
             notificationText: "GPS tracking loopt op de achtergrond...",
             notificationIcon: "mipmap/ic_launcher"
@@ -207,7 +212,6 @@ async function startRun() {
       });
     } catch (e) { console.error("Native background tracking starten mislukt", e); }
   } else {
-    // Browser fallback voor testen op PC
     webWatchId = navigator.geolocation.watchPosition((pos) => {
         handleGpsFix({ lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy, speed: pos.coords.speed, heading: pos.coords.heading, timestamp: pos.timestamp });
     }, (err) => console.error(err), { enableHighAccuracy: true });
@@ -225,7 +229,6 @@ async function toggleRun(){
     running = false;
     clearInterval(interval);
     
-    // Stop watcher
     const Capacitor = window.Capacitor;
     if (Capacitor && Capacitor.Plugins && Capacitor.Plugins.BackgroundGeolocation && watcherId) {
         await Capacitor.Plugins.BackgroundGeolocation.removeWatcher({ id: watcherId });
@@ -235,12 +238,10 @@ async function toggleRun(){
     
     tempRun.end = Date.now();
     
-    // Zorg ervoor dat er ALTIJD minimaal 1 punt in zit als refLat is gevonden
     if(tempRun.points.length === 0 && refLat !== null) {
         tempRun.points.push({lat: refLat, lon: refLon, t: 0});
     }
     
-    // Sla op als er punten zijn
     if(tempRun.points.length > 0) {
         let runs = JSON.parse(localStorage.getItem("runs")||"[]");
         runs.unshift(tempRun);
@@ -264,9 +265,19 @@ function nav(screen){
   if(target) target.classList.add("active");
   
   document.getElementById("navBtn").innerText = (screen === "run") ? "Routes" : "Home";
+  
+  // Knoppen tonen/verbergen op basis van scherm
   document.getElementById("importBtn").style.display = (screen === 'routes') ? 'block' : 'none';
+  document.getElementById("pointsBtn").style.display = (screen === 'view') ? 'block' : 'none';
   document.getElementById("exportBtn").style.display = (screen === 'view') ? 'block' : 'none';
   document.getElementById("deleteBtn").style.display = (screen === 'view') ? 'block' : 'none';
+  
+  // Reset de points-weergave als we weggaan
+  if(screen !== 'view' && pointsLayerGroup && map) {
+      pointsLayerGroup.clearLayers();
+      showingPoints = false;
+      document.getElementById("pointsBtn").classList.remove("on");
+  }
   
   if(screen === "routes") loadRuns();
   if(screen === "run" && liveMap) { setTimeout(() => liveMap.invalidateSize(), 100); }
@@ -305,11 +316,14 @@ function showRun(index){
     map = L.map('routeMap', { zoomControl: false, attributionControl: false }).setView([0,0], 15);
     L.tileLayer(SATELLITE_URL, { maxZoom: 19 }).addTo(map);
     polyline = L.polyline([], {color: '#4ade80', weight: 6, opacity: 0.9}).addTo(map);
+    pointsLayerGroup = L.layerGroup().addTo(map);
   }
   
-  // Verwijder oude markers
   markers.forEach(m => map.removeLayer(m));
   markers = [];
+  pointsLayerGroup.clearLayers();
+  showingPoints = false;
+  document.getElementById("pointsBtn").classList.remove("on");
   
   setTimeout(() => { map.invalidateSize(); }, 100);
 
@@ -318,11 +332,9 @@ function showRun(index){
     polyline.setLatLngs(latlngs);
     map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
 
-    // Voeg Start SVG marker toe
     const startIcon = L.divIcon({ html: `<svg width="24" height="24"><circle cx="12" cy="12" r="10" fill="#4ade80" stroke="#000" stroke-width="2"/></svg>`, className: '', iconSize: [24,24], iconAnchor: [12,12] });
     markers.push(L.marker(latlngs[0], {icon: startIcon}).addTo(map));
     
-    // Voeg Eind SVG marker toe (als er meer dan 1 punt is)
     if(latlngs.length > 1) {
         const endIcon = L.divIcon({ html: `<svg width="24" height="24"><circle cx="12" cy="12" r="10" fill="#ef4444" stroke="#000" stroke-width="2"/></svg>`, className: '', iconSize: [24,24], iconAnchor: [12,12] });
         markers.push(L.marker(latlngs[latlngs.length-1], {icon: endIcon}).addTo(map));
@@ -343,6 +355,45 @@ function showRun(index){
   `;
 }
 
+/* === PUNTEN TOGGLE LOGICA === */
+document.getElementById("pointsBtn").onclick = () => {
+  if(activeRunIndex === null) return;
+  
+  showingPoints = !showingPoints;
+  const btn = document.getElementById("pointsBtn");
+  
+  if(showingPoints) {
+    btn.classList.add("on");
+    let runs = JSON.parse(localStorage.getItem("runs")||"[]");
+    const run = runs[activeRunIndex];
+    let cumulativeDist = 0;
+    
+    run.points.forEach((p, i) => {
+        if(i > 0) cumulativeDist += getDistance(run.points[i-1], p);
+        
+        const circle = L.circleMarker([p.lat, p.lon], {
+            radius: 6,
+            color: '#ffffff',
+            weight: 2,
+            fillColor: '#3b82f6',
+            fillOpacity: 0.9
+        });
+        
+        const popupText = `
+            <strong>Punt ${i + 1}</strong><br>
+            Tijd bereikt: ${formatTime(p.t)}<br>
+            Afstand tot nu: ${(cumulativeDist/1000).toFixed(2)} km
+        `;
+        
+        circle.bindPopup(popupText);
+        pointsLayerGroup.addLayer(circle);
+    });
+  } else {
+    btn.classList.remove("on");
+    pointsLayerGroup.clearLayers();
+  }
+};
+
 /* === DATA BEHEER (Delete, Import, Export) === */
 document.getElementById("deleteBtn").onclick = () => {
   if(activeRunIndex !== null && confirm("Sessie definitief verwijderen?")) {
@@ -357,15 +408,36 @@ document.getElementById("deleteBtn").onclick = () => {
 document.getElementById("exportBtn").onclick = () => {
   if(activeRunIndex !== null) {
     let runs = JSON.parse(localStorage.getItem("runs")||"[]");
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(runs[activeRunIndex]));
+    const run = runs[activeRunIndex];
+    const dataStr = JSON.stringify(run);
+    const fileName = `runflow-${run.start}.json`;
+    
+    // Probeer Native Share (werkt goed op mobiele Android app)
+    if (navigator.canShare) {
+        const file = new File([dataStr], fileName, { type: 'application/json' });
+        navigator.share({
+            title: 'RunFlow Route',
+            text: 'Mijn hardlooproute vanuit RunFlow',
+            files: [file]
+        }).catch(err => {
+            console.log("Share geannuleerd of mislukt, probeer web-download", err);
+            fallbackDownload(dataStr, fileName);
+        });
+    } else {
+        fallbackDownload(dataStr, fileName);
+    }
+  }
+};
+
+function fallbackDownload(dataStr, fileName) {
+    const encodedData = "data:text/json;charset=utf-8," + encodeURIComponent(dataStr);
     const dlAnchor = document.createElement('a');
-    dlAnchor.setAttribute("href", dataStr);
-    dlAnchor.setAttribute("download", `runflow-run-${runs[activeRunIndex].start}.json`);
+    dlAnchor.setAttribute("href", encodedData);
+    dlAnchor.setAttribute("download", fileName);
     document.body.appendChild(dlAnchor);
     dlAnchor.click();
     dlAnchor.remove();
-  }
-};
+}
 
 document.getElementById("importBtn").onclick = () => { document.getElementById("importFile").click(); };
 document.getElementById("importFile").onchange = (e) => {
@@ -381,6 +453,8 @@ document.getElementById("importFile").onchange = (e) => {
       localStorage.setItem("runs", JSON.stringify(runs));
       loadRuns();
     } catch(err) { alert("Ongeldig RunFlow JSON bestand."); }
+    // Reset file input zodat je hetzelfde bestand later nog eens kunt inladen
+    e.target.value = '';
   };
   reader.readAsText(file);
 };
