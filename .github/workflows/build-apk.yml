@@ -32,7 +32,7 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x android/gradlew
 
-      - name: Build APK (release)
+      - name: Build APK (debug)
         run: |
           cd android
           ./gradlew assembleDebug
@@ -41,4 +41,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: RunFlow-APK
-          path: android/app/build/outputs/apk/release/
+          path: android/app/build/outputs/apk/debug/
