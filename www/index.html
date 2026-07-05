@@ -377,44 +377,44 @@ document.getElementById("importFile").onchange = (e) => {
 };
 
 document.getElementById("exportBtn").onclick = async () => {
-  if (activeRunIndex === null) return;
-  
-  let runs = JSON.parse(localStorage.getItem("runs")||"[]");
-  const run = runs[activeRunIndex];
-  const fileName = `runflow-${run.start}.json`;
-  const dataStr = JSON.stringify(run);
+    if (activeRunIndex === null) return;
 
-  // Maak een 'File' object aan dat je telefoon begrijpt
-  const file = new File([dataStr], fileName, { type: "application/json" });
+    const runs = JSON.parse(localStorage.getItem("runs") || "[]");
+    const run = runs[activeRunIndex];
 
-  // Gebruik de Web Share API (native Android deelmenu)
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({
-        files: [file],
-        title: 'RunFlow Export',
-        text: 'Hier is mijn hardloopsessie'
-      });
-    } catch (err) {
-      console.error("Delen mislukt", err);
-      // Fallback naar download als delen geannuleerd wordt
-      downloadBlob(dataStr, fileName);
+    const filename = `runflow-${run.start}.json`;
+    const data = JSON.stringify(run);
+
+    const Capacitor = window.Capacitor;
+    if (!Capacitor?.Plugins?.Filesystem) {
+        alert("Filesystem plugin niet beschikbaar");
+        return;
     }
-  } else {
-    // Fallback als delen niet wordt ondersteund
-    downloadBlob(dataStr, fileName);
-  }
-};
 
-function downloadBlob(dataStr, fileName) {
-  const blob = new Blob([dataStr], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const dl = document.createElement('a');
-  dl.href = url;
-  dl.download = fileName;
-  dl.click();
-  URL.revokeObjectURL(url);
-}
+    try {
+        // 1. Opslaan in app storage (werkt altijd op Android 11+)
+        await Capacitor.Plugins.Filesystem.writeFile({
+            path: filename,
+            data: data,
+            directory: Capacitor.Plugins.Filesystem.Directory.Data
+        });
+
+        // 2. Daarna delen via Android share menu
+        if (Capacitor.Plugins.Share) {
+            await Capacitor.Plugins.Share.share({
+                title: "RunFlow export",
+                text: "Mijn hardloopsessie",
+                url: filename
+            });
+        } else {
+            alert("Opgeslagen: " + filename);
+        }
+
+    } catch (e) {
+        console.error(e);
+        alert("Export mislukt");
+    }
+};
 
 
 
