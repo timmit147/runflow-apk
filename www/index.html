@@ -384,34 +384,36 @@ document.getElementById("exportBtn").onclick = async () => {
   const fileName = `runflow-${run.start}.json`;
   const dataStr = JSON.stringify(run);
 
-  const Capacitor = window.Capacitor;
+  // We gebruiken hier de globale Capacitor plugin
+  const Filesystem = window.Capacitor.Plugins.Filesystem;
   
-  if (Capacitor && Capacitor.Plugins && Capacitor.Plugins.Filesystem) {
+  if (Filesystem) {
     try {
-      const { Filesystem, Directory, Encoding } = Capacitor.Plugins;
+      // Gebruik Filesystem.Directory.Documents (in plaats van een losse Directory variabele)
       await Filesystem.writeFile({
         path: fileName,
         data: dataStr,
-        directory: Directory.Documents,
-        encoding: Encoding.UTF8
+        directory: Filesystem.Directory.Documents,
+        encoding: 'utf8' // 'utf8' als string is vaak veiliger dan de constante in non-build omgevingen
       });
-      alert(`✅ Bestand succesvol opgeslagen!\n\nKijk in de 'Documenten' map op je telefoon naar:\n${fileName}`);
+      
+      alert("✅ Opgeslagen in je Documenten-map!");
     } catch (error) {
-      alert("❌ Opslaan mislukt. Zorg dat de app Opslagrechten heeft in Android.\nError: " + error.message);
+      console.error(error);
+      alert("❌ Opslaan mislukt: " + error.message);
     }
   } else {
-    // Fallback voor testen in PC browser
+    // Fallback voor browser/pc
     const blob = new Blob([dataStr], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    const dlAnchor = document.createElement('a');
-    dlAnchor.href = url;
-    dlAnchor.setAttribute("download", fileName);
-    document.body.appendChild(dlAnchor);
-    dlAnchor.click();
-    document.body.removeChild(dlAnchor);
+    const dl = document.createElement('a');
+    dl.href = url;
+    dl.download = fileName;
+    dl.click();
     URL.revokeObjectURL(url);
   }
 };
+
 
 // Start de app
 nav("run");
