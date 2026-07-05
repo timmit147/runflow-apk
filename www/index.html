@@ -11,28 +11,26 @@
 <meta name="theme-color" content="#0b1220">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <style>
-html, body { height: 100%; }
-body { margin: 0; background: #0b1220; font-family: system-ui; color: white; overflow: hidden; }
+html, body { height: 100%; margin: 0; background: #0b1220; font-family: system-ui; color: white; overflow: hidden; }
 .header { position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: bold; z-index: 500; }
 .actions { display: flex; gap: 8px; }
-.btn { padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; background: rgba(0,0,0,0.5); }
+.btn { padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
 .btn.on { background: #4ade80; color: #000; border-color: #4ade80; }
 .screen { display: none; height: 100vh; width: 100%; align-items: center; justify-content: center; flex-direction: column; box-sizing: border-box; position: relative; }
 .active { display: flex; }
-.bigbtn { width: 180px; height: 180px; border-radius: 50%; border: none; font-size: 20px; font-weight: bold; background: white; color: black; cursor: pointer; }
-.timer { margin-top: 15px; font-size: 28px; font-variant-numeric: tabular-nums; }
-.list { width: 80%; max-width: 400px; display: flex; flex-direction: column; gap: 10px; max-height: 70vh; overflow-y: auto; }
-.item { padding: 15px; border-radius: 10px; background: rgba(255,255,255,0.05); cursor: pointer; display: flex; justify-content: space-between; user-select: none; -webkit-user-select: none; }
-#routeMap { width: 100%; height: 100%; }
-.info { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); width: 80%; max-width: 400px; text-align: left; font-size: 13px; background: rgba(0,0,0,0.75); padding: 15px; border-radius: 8px; line-height: 1.6; display: none; z-index: 500; }
 
-.lock-overlay { position: fixed; inset: 0; background: #000; z-index: 999; display: none; flex-direction: column; align-items: center; justify-content: center; color: #fff; }
-.lock-overlay.active { display: flex; }
-.lock-time { font-size: 52px; font-weight: 300; font-variant-numeric: tabular-nums; }
-.lock-sub { font-size: 14px; opacity: 0.5; margin-top: 8px; }
-.slide-track { position: absolute; bottom: 70px; width: 80%; max-width: 320px; height: 56px; background: rgba(255,255,255,0.08); border-radius: 28px; box-sizing: border-box; }
-.slide-handle { position: absolute; left: 4px; top: 4px; width: 48px; height: 48px; border-radius: 50%; background: #fff; touch-action: none; }
-.slide-label { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); text-align: center; font-size: 13px; opacity: 0.5; pointer-events: none; }
+/* Run Screen UI */
+#runMap { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+.run-controls { position: absolute; bottom: 50px; z-index: 10; display: flex; flex-direction: column; align-items: center; width: 100%; }
+.timer { margin-bottom: 20px; font-size: 32px; font-variant-numeric: tabular-nums; background: rgba(0,0,0,0.6); padding: 10px 25px; border-radius: 15px; backdrop-filter: blur(5px); font-weight: bold; }
+.bigbtn { width: 140px; height: 140px; border-radius: 50%; border: none; font-size: 20px; font-weight: bold; background: white; color: black; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+.bigbtn.stop { background: #ef4444; color: white; }
+
+/* Lists & Info */
+.list { width: 90%; max-width: 400px; display: flex; flex-direction: column; gap: 10px; max-height: 75vh; overflow-y: auto; z-index: 10; padding-top: 60px; }
+.item { padding: 15px; border-radius: 10px; background: rgba(255,255,255,0.1); cursor: pointer; display: flex; justify-content: space-between; user-select: none; -webkit-user-select: none; }
+#routeMap { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+.info { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); width: 85%; max-width: 400px; text-align: left; font-size: 14px; background: rgba(0,0,0,0.85); padding: 20px; border-radius: 12px; line-height: 1.6; display: none; z-index: 500; backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.1); }
 </style>
 </head>
 <body>
@@ -40,7 +38,6 @@ body { margin: 0; background: #0b1220; font-family: system-ui; color: white; ove
 <div class="header">
   <div id="navBtn" class="btn">Routes</div>
   <div class="actions">
-    <div id="lockBtn" class="btn" style="display:none;">Lock</div>
     <div id="importBtn" class="btn" style="display:none;">Import</div>
     <div id="exportBtn" class="btn" style="display:none;">Export</div>
     <div id="deleteBtn" class="btn" style="display:none;">Delete</div>
@@ -50,8 +47,11 @@ body { margin: 0; background: #0b1220; font-family: system-ui; color: white; ove
 <input type="file" id="importFile" accept="application/json,.json" style="display:none;">
 
 <div id="run" class="screen active">
-  <button class="bigbtn" id="btn" onclick="toggleRun();">START</button>
-  <div class="timer" id="timer">00:00:00</div>
+  <div id="runMap"></div>
+  <div class="run-controls">
+    <div class="timer" id="timer">00:00:00</div>
+    <button class="bigbtn" id="btn" onclick="toggleRun();">START</button>
+  </div>
 </div>
 
 <div id="routes" class="screen">
@@ -63,23 +63,18 @@ body { margin: 0; background: #0b1220; font-family: system-ui; color: white; ove
   <div class="info" id="info"></div>
 </div>
 
-<div id="lockOverlay" class="lock-overlay">
-  <div class="lock-time" id="lockTime">00:00:00</div>
-  <div class="lock-sub" id="lockDist">0.00 km</div>
-  <div class="slide-track" id="slideTrack">
-    <div class="slide-label">Slide to unlock</div>
-    <div class="slide-handle" id="slideHandle"></div>
-  </div>
-</div>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-/* === JOUW FILTER ALGORITME === */
+/* === VARIABELEN & CONFIGURATIE === */
 let running = false, startTime, interval, tempRun;
 const ACCURACY_MAX_MOVING = 25, ACCURACY_MAX_STATIONARY = 10, FIX_BUFFER_SIZE = 8, GEOFENCE_STATIONARY = 10, STOP_ENTER_DURATION = 10000, STOP_EXIT_DISTANCE = 15, MIN_POINT_INTERVAL = 3000, MIN_POINT_DISTANCE = 8, CONFIRM_STREAK = 4, HEADING_TOLERANCE = 55, KALMAN_PROCESS_NOISE = 4;
 let refLat = null, refLon = null, kalmanX, kalmanY, fixBuffer = [], lastConfirmedPoint = null, lastFilteredForBearing = null, bearingBuffer = [], movementStreak = 0, stopMode = false, stopAnchor = null, stillSince = null;
-let watcherId = null, webWatchId = null, map = null, polyline = null, activeRunIndex = null;
+let watcherId = null, webWatchId = null, map = null, polyline = null, activeRunIndex = null, markers = [];
+let liveMap = null, livePolyline = null, liveMarker = null;
 
+const SATELLITE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+
+/* === HELPER FUNCTIES === */
 function toLocalXY(lat, lon){ const x = (lon - refLon) * 111320 * Math.cos(refLat * Math.PI/180); const y = (lat - refLat) * 111320; return { x, y }; }
 function fromLocalXY(x, y){ return { lat: refLat + y/111320, lon: refLon + x/(111320*Math.cos(refLat*Math.PI/180)) }; }
 function makeKalman(){ return { value: null, variance: -1 }; }
@@ -91,20 +86,37 @@ function isHeadingConsistent(bearings, tolerance){ if(bearings.length < 2) retur
 function getDistance(p1, p2) { const R = 6371e3; const r1 = p1.lat * Math.PI/180, r2 = p2.lat * Math.PI/180; const dLat = (p2.lat-p1.lat)*Math.PI/180, dLon = (p2.lon-p1.lon)*Math.PI/180; const a = Math.sin(dLat/2)**2 + Math.cos(r1)*Math.cos(r2)*Math.sin(dLon/2)**2; return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); }
 function formatTime(ms){ let totalSec = Math.max(0, Math.floor(ms/1000)); let h = Math.floor(totalSec/3600); let m = Math.floor((totalSec%3600)/60); let s = totalSec%60; return h.toString().padStart(2,'0')+':'+m.toString().padStart(2,'0')+':'+s.toString().padStart(2,'0'); }
 
+/* === GPS DATA VERWERKEN === */
 function handleGpsFix(raw){
-  if(refLat === null){ refLat = raw.lat; refLon = raw.lon; }
+  // Direct eerste punt vastleggen voor live map en zekerheid
+  if(tempRun && tempRun.points.length === 0) {
+      refLat = raw.lat; refLon = raw.lon;
+      const firstPoint = { lat: raw.lat, lon: raw.lon, t: 0 };
+      tempRun.points.push(firstPoint);
+      lastConfirmedPoint = firstPoint;
+      
+      if(liveMap && running) {
+          liveMap.setView([raw.lat, raw.lon], 17);
+          liveMarker.setLatLng([raw.lat, raw.lon]);
+      }
+  }
+
   const accLimit = stopMode ? ACCURACY_MAX_STATIONARY : ACCURACY_MAX_MOVING;
   if(raw.accuracy != null && raw.accuracy > accLimit) return;
+  
   const local = toLocalXY(raw.lat, raw.lon);
   fixBuffer.push({ x: local.x, y: local.y, accuracy: raw.accuracy || 15 });
   if(fixBuffer.length > FIX_BUFFER_SIZE) fixBuffer.shift();
+  
   const avg = weightedAverage(fixBuffer);
   const fx = kalmanUpdate(kalmanX, avg.x, avg.accuracy**2);
   const fy = kalmanUpdate(kalmanY, avg.y, avg.accuracy**2);
   const filtered = fromLocalXY(fx, fy);
   filtered.t = raw.timestamp - startTime;
+  
   const referencePoint = stopMode ? stopAnchor : (lastConfirmedPoint || filtered);
   const dist = getDistance(referencePoint, filtered);
+  
   let headingConsistent = true;
   if(lastFilteredForBearing && dist > 1){
     const bearing = bearingBetween(lastFilteredForBearing, filtered);
@@ -113,42 +125,66 @@ function handleGpsFix(raw){
     headingConsistent = isHeadingConsistent(bearingBuffer, HEADING_TOLERANCE);
   }
   lastFilteredForBearing = filtered;
+  
   const movingThisFix = dist > (stopMode ? 3 : 2) && headingConsistent;
   movementStreak = movingThisFix ? movementStreak + 1 : 0;
+  
   if(!stopMode){
     if(dist < GEOFENCE_STATIONARY && !movingThisFix){
       if(stillSince === null) stillSince = raw.timestamp;
       if(raw.timestamp - stillSince >= STOP_ENTER_DURATION){ stopMode = true; stopAnchor = lastConfirmedPoint || filtered; movementStreak = 0; }
     } else { stillSince = null; }
+    
     if(!stopMode){
-      if(!lastConfirmedPoint){ tempRun.points.push(filtered); lastConfirmedPoint = filtered; }
-      else {
-        const dt = raw.timestamp - (startTime + lastConfirmedPoint.t);
-        const d = getDistance(lastConfirmedPoint, filtered);
-        if(dt >= MIN_POINT_INTERVAL && d >= MIN_POINT_DISTANCE && movementStreak >= CONFIRM_STREAK){ tempRun.points.push(filtered); lastConfirmedPoint = filtered; }
+      const dt = raw.timestamp - (startTime + lastConfirmedPoint.t);
+      const d = getDistance(lastConfirmedPoint, filtered);
+      if(dt >= MIN_POINT_INTERVAL && d >= MIN_POINT_DISTANCE && movementStreak >= CONFIRM_STREAK){ 
+          tempRun.points.push(filtered); 
+          lastConfirmedPoint = filtered; 
+          
+          // Teken live op de kaart
+          if(liveMap && running) {
+              const ll = [filtered.lat, filtered.lon];
+              const currentLatLngs = livePolyline.getLatLngs();
+              currentLatLngs.push(ll);
+              livePolyline.setLatLngs(currentLatLngs);
+              liveMarker.setLatLng(ll);
+              liveMap.setView(ll);
+          }
       }
     }
   } else {
     const distFromAnchor = getDistance(stopAnchor, filtered);
-    if(distFromAnchor >= STOP_EXIT_DISTANCE && movementStreak >= CONFIRM_STREAK){ stopMode = false; stillSince = null; lastConfirmedPoint = filtered; tempRun.points.push(filtered); movementStreak = 0; }
-  }
-  
-  // Bereken live afstand voor lockscreen scherm
-  if(tempRun && tempRun.points.length > 1) {
-    let tDist = 0;
-    for(let i=1; i<tempRun.points.length; i++) { tDist += getDistance(tempRun.points[i-1], tempRun.points[i]); }
-    document.getElementById("lockDist").innerText = (tDist / 1000).toFixed(2) + " km";
+    if(distFromAnchor >= STOP_EXIT_DISTANCE && movementStreak >= CONFIRM_STREAK){ 
+        stopMode = false; stillSince = null; lastConfirmedPoint = filtered; 
+        tempRun.points.push(filtered); movementStreak = 0; 
+    }
   }
 }
 
-/* === RUN CONTROLS & BACKGROUND GEOLOCATION === */
+/* === RUN START/STOP === */
 async function startRun() {
   running = true;
-  document.getElementById("btn").innerText = "STOP";
+  const btn = document.getElementById("btn");
+  btn.innerText = "STOP";
+  btn.classList.add("stop");
   startTime = Date.now();
   tempRun = { start: startTime, points: [] };
   refLat = null; refLon = null; kalmanX = makeKalman(); kalmanY = makeKalman(); fixBuffer = []; lastConfirmedPoint = null; lastFilteredForBearing = null; bearingBuffer = []; movementStreak = 0; stopMode = false; stopAnchor = null; stillSince = null;
 
+  // Initialiseer live map als dat nog niet is gebeurd
+  if(!liveMap) {
+      liveMap = L.map('runMap', { zoomControl: false, attributionControl: false }).setView([52.1326, 5.2913], 15); // Default start NL
+      L.tileLayer(SATELLITE_URL, { maxZoom: 19 }).addTo(liveMap);
+      livePolyline = L.polyline([], {color: '#4ade80', weight: 6, opacity: 0.9}).addTo(liveMap);
+      const liveIcon = L.divIcon({ html: `<svg width="18" height="18"><circle cx="9" cy="9" r="7" fill="#3b82f6" stroke="#fff" stroke-width="2"/></svg>`, className: '', iconSize: [18,18], iconAnchor: [9,9] });
+      liveMarker = L.marker([52.1326, 5.2913], {icon: liveIcon}).addTo(liveMap);
+  } else {
+      livePolyline.setLatLngs([]);
+      liveMap.invalidateSize();
+  }
+
+  // Background Geolocation Plugin
   const Capacitor = window.Capacitor;
   if (Capacitor && Capacitor.Plugins && Capacitor.Plugins.BackgroundGeolocation) {
     const BackgroundGeolocation = Capacitor.Plugins.BackgroundGeolocation;
@@ -158,43 +194,28 @@ async function startRun() {
           backgroundTitle: "RunFlow sessie actief",
           requestPermissions: true,
           stale: false,
-          distanceFilter: 0 
+          distanceFilter: 0,
+          androidOptions: {
+            foregroundService: true, // Zorgt voor de notificatie in de achtergrond
+            notificationTitle: "RunFlow is actief",
+            notificationText: "GPS tracking loopt op de achtergrond...",
+            notificationIcon: "mipmap/ic_launcher"
+          }
       }, (location, error) => {
           if (error) return;
-          handleGpsFix({
-              lat: location.latitude,
-              lon: location.longitude,
-              accuracy: location.accuracy,
-              speed: location.speed,
-              heading: location.bearing,
-              timestamp: location.time
-          });
+          handleGpsFix({ lat: location.latitude, lon: location.longitude, accuracy: location.accuracy, speed: location.speed, heading: location.bearing, timestamp: location.time });
       });
-    } catch (e) {
-      console.error("Native background tracking starten mislukt", e);
-    }
+    } catch (e) { console.error("Native background tracking starten mislukt", e); }
   } else {
-    // Web browser fallback voor lokaal testen
+    // Browser fallback voor testen op PC
     webWatchId = navigator.geolocation.watchPosition((pos) => {
-        handleGpsFix({
-            lat: pos.coords.latitude,
-            lon: pos.coords.longitude,
-            accuracy: pos.coords.accuracy,
-            speed: pos.coords.speed,
-            heading: pos.coords.heading,
-            timestamp: pos.timestamp
-        });
+        handleGpsFix({ lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy, speed: pos.coords.speed, heading: pos.coords.heading, timestamp: pos.timestamp });
     }, (err) => console.error(err), { enableHighAccuracy: true });
   }
 
   interval = setInterval(()=>{
-    const elapsed = Date.now() - startTime;
-    const timeStr = formatTime(elapsed);
-    document.getElementById("timer").innerText = timeStr;
-    document.getElementById("lockTime").innerText = timeStr;
+    document.getElementById("timer").innerText = formatTime(Date.now() - startTime);
   }, 1000);
-  
-  document.getElementById("lockBtn").style.display = "block";
 }
 
 async function toggleRun(){
@@ -204,55 +225,59 @@ async function toggleRun(){
     running = false;
     clearInterval(interval);
     
-    // Stop de actieve watchers safely
+    // Stop watcher
     const Capacitor = window.Capacitor;
     if (Capacitor && Capacitor.Plugins && Capacitor.Plugins.BackgroundGeolocation && watcherId) {
         await Capacitor.Plugins.BackgroundGeolocation.removeWatcher({ id: watcherId });
         watcherId = null;
     }
-    if (webWatchId !== null) {
-        navigator.geolocation.clearWatch(webWatchId);
-        webWatchId = null;
-    }
+    if (webWatchId !== null) { navigator.geolocation.clearWatch(webWatchId); webWatchId = null; }
     
     tempRun.end = Date.now();
-    let runs = JSON.parse(localStorage.getItem("runs")||"[]");
-    runs.unshift(tempRun);
-    localStorage.setItem("runs", JSON.stringify(runs));
     
-    document.getElementById("btn").innerText = "START";
+    // Zorg ervoor dat er ALTIJD minimaal 1 punt in zit als refLat is gevonden
+    if(tempRun.points.length === 0 && refLat !== null) {
+        tempRun.points.push({lat: refLat, lon: refLon, t: 0});
+    }
+    
+    // Sla op als er punten zijn
+    if(tempRun.points.length > 0) {
+        let runs = JSON.parse(localStorage.getItem("runs")||"[]");
+        runs.unshift(tempRun);
+        localStorage.setItem("runs", JSON.stringify(runs));
+    } else {
+        alert("Geen GPS punten gevonden. Sessie niet opgeslagen.");
+    }
+    
+    const btn = document.getElementById("btn");
+    btn.innerText = "START";
+    btn.classList.remove("stop");
     document.getElementById("timer").innerText = "00:00:00";
-    document.getElementById("lockBtn").style.display = "none";
     nav("routes");
   }
 }
 
-/* === NAVIGATION & UI FLOW === */
+/* === NAVIGATIE & UI === */
 function nav(screen){
   document.querySelectorAll(".screen").forEach(x=>x.classList.remove("active"));
   const target = document.getElementById(screen);
   if(target) target.classList.add("active");
   
-  // Update header knoppen op basis van het geopende scherm
   document.getElementById("navBtn").innerText = (screen === "run") ? "Routes" : "Home";
   document.getElementById("importBtn").style.display = (screen === 'routes') ? 'block' : 'none';
   document.getElementById("exportBtn").style.display = (screen === 'view') ? 'block' : 'none';
   document.getElementById("deleteBtn").style.display = (screen === 'view') ? 'block' : 'none';
   
   if(screen === "routes") loadRuns();
+  if(screen === "run" && liveMap) { setTimeout(() => liveMap.invalidateSize(), 100); }
 }
 
 document.getElementById("navBtn").onclick = () => {
-  const current = document.querySelector(".screen.active").id;
-  if(current === "run") {
-    nav("routes");
-  } else {
-    document.getElementById("info").style.display = "none";
-    nav("run");
-  }
+  if(document.querySelector(".screen.active").id === "run") nav("routes");
+  else { document.getElementById("info").style.display = "none"; nav("run"); }
 };
 
-/* === HISTORIE & KAART RENDEREN === */
+/* === HISTORIE & ROUTE VIEW === */
 function loadRuns(){
   const listEl = document.getElementById("list");
   listEl.innerHTML = "";
@@ -264,9 +289,7 @@ function loadRuns(){
   runs.forEach((run, index) => {
     const item = document.createElement("div");
     item.className = "item";
-    const date = new Date(run.start).toLocaleDateString();
-    const duration = formatTime(run.end - run.start);
-    item.innerHTML = `<span>Sessie ${runs.length - index} (${date})</span><span>${duration}</span>`;
+    item.innerHTML = `<span>Sessie ${runs.length - index} (${new Date(run.start).toLocaleDateString()})</span><span>${formatTime(run.end - run.start)}</span>`;
     item.onclick = () => showRun(index);
     listEl.appendChild(item);
   });
@@ -279,32 +302,48 @@ function showRun(index){
   nav("view");
   
   if(!map) {
-    map = L.map('routeMap', { zoomControl: false }).setView([0,0], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-    polyline = L.polyline([], {color: '#4ade80', weight: 5}).addTo(map);
+    map = L.map('routeMap', { zoomControl: false, attributionControl: false }).setView([0,0], 15);
+    L.tileLayer(SATELLITE_URL, { maxZoom: 19 }).addTo(map);
+    polyline = L.polyline([], {color: '#4ade80', weight: 6, opacity: 0.9}).addTo(map);
   }
   
+  // Verwijder oude markers
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+  
+  setTimeout(() => { map.invalidateSize(); }, 100);
+
   if(run.points && run.points.length > 0) {
     const latlngs = run.points.map(p => [p.lat, p.lon]);
     polyline.setLatLngs(latlngs);
-    map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+    map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
+
+    // Voeg Start SVG marker toe
+    const startIcon = L.divIcon({ html: `<svg width="24" height="24"><circle cx="12" cy="12" r="10" fill="#4ade80" stroke="#000" stroke-width="2"/></svg>`, className: '', iconSize: [24,24], iconAnchor: [12,12] });
+    markers.push(L.marker(latlngs[0], {icon: startIcon}).addTo(map));
+    
+    // Voeg Eind SVG marker toe (als er meer dan 1 punt is)
+    if(latlngs.length > 1) {
+        const endIcon = L.divIcon({ html: `<svg width="24" height="24"><circle cx="12" cy="12" r="10" fill="#ef4444" stroke="#000" stroke-width="2"/></svg>`, className: '', iconSize: [24,24], iconAnchor: [12,12] });
+        markers.push(L.marker(latlngs[latlngs.length-1], {icon: endIcon}).addTo(map));
+    }
   } else {
     polyline.setLatLngs([]);
   }
   
   let totalDist = 0;
-  for(let i=1; i<run.points.length; i++) { totalDist += getDistance(run.points[i-1], run.points[i]); }
+  if(run.points) { for(let i=1; i<run.points.length; i++) { totalDist += getDistance(run.points[i-1], run.points[i]); } }
   
   document.getElementById("info").style.display = "block";
   document.getElementById("info").innerHTML = `
     <strong>Datum:</strong> ${new Date(run.start).toLocaleString()}<br>
     <strong>Duur:</strong> ${formatTime(run.end - run.start)}<br>
     <strong>Afstand:</strong> ${(totalDist/1000).toFixed(2)} km<br>
-    <strong>Gefilterde GPS Punten:</strong> ${run.points.length}
+    <strong>Datapunten:</strong> ${run.points ? run.points.length : 0}
   `;
 }
 
-/* === EXTRA DATA INTERACTIE (Delete, Export, Import) === */
+/* === DATA BEHEER (Delete, Import, Export) === */
 document.getElementById("deleteBtn").onclick = () => {
   if(activeRunIndex !== null && confirm("Sessie definitief verwijderen?")) {
     let runs = JSON.parse(localStorage.getItem("runs")||"[]");
@@ -341,39 +380,12 @@ document.getElementById("importFile").onchange = (e) => {
       runs.unshift(run);
       localStorage.setItem("runs", JSON.stringify(runs));
       loadRuns();
-    } catch(err) {
-      alert("Ongeldig RunFlow JSON bestand.");
-    }
+    } catch(err) { alert("Ongeldig RunFlow JSON bestand."); }
   };
   reader.readAsText(file);
 };
 
-/* === SLIDE TO UNLOCK OVERLAY === */
-const handle = document.getElementById("slideHandle");
-const track = document.getElementById("slideTrack");
-let isDragging = false, startX = 0;
-
-document.getElementById("lockBtn").onclick = () => { document.getElementById("lockOverlay").classList.add("active"); };
-
-if(handle) {
-  handle.addEventListener("touchstart", (e) => { isDragging = true; startX = e.touches[0].clientX; });
-  window.addEventListener("touchmove", (e) => {
-    if(!isDragging) return;
-    let deltaX = e.touches[0].clientX - startX;
-    const maxDelta = track.clientWidth - handle.clientWidth - 8;
-    if(deltaX < 0) deltaX = 0;
-    if(deltaX > maxDelta) deltaX = maxDelta;
-    handle.style.transform = `translateX(${deltaX}px)`;
-    if(deltaX >= maxDelta) {
-      isDragging = false;
-      handle.style.transform = "translateX(0px)";
-      document.getElementById("lockOverlay").classList.remove("active");
-    }
-  });
-  window.addEventListener("touchend", () => { isDragging = false; handle.style.transform = "translateX(0px)"; });
-}
-
-// Start op het hoofdscherm
+// Start de app
 nav("run");
 </script>
 </body>
