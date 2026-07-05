@@ -65,7 +65,7 @@ body { margin: 0; background: #0b1220; font-family: system-ui; color: white; ove
 
 <div id="lockOverlay" class="lock-overlay">
   <div class="lock-time" id="lockTime">00:00:00</div>
-  <div class="lock-sub" id="lockDist"></div>
+  <div class="lock-sub" id="lockDist">0.00 km</div>
   <div class="slide-track" id="slideTrack">
     <div class="slide-label">Slide to unlock</div>
     <div class="slide-handle" id="slideHandle"></div>
@@ -74,10 +74,11 @@ body { margin: 0; background: #0b1220; font-family: system-ui; color: white; ove
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-/* === JOUW ALGORITME (Geen wijzigingen) === */
+/* === JOUW FILTER ALGORITME === */
 let running = false, startTime, interval, tempRun;
-const ACCURACY_MAX_MOVING = 25, ACCURACY_MAX_STATIONARY = 10, FIX_BUFFER_SIZE = 8, GEOFENCE_STATIONARY = 10, STOP_ENTER_DURATION = 10000, STOP_EXIT_DISTANCE = 15, MIN_POINT_INTERVAL = 3000, MIN_POINT_DISTANCE = 8, CONFIRM_STREAK = 4, HEADING_TOLERANCE = 55, KALMAN_PROCESS_NOISE = 4, MOTION_STILL_VARIANCE = 0.3;
+const ACCURACY_MAX_MOVING = 25, ACCURACY_MAX_STATIONARY = 10, FIX_BUFFER_SIZE = 8, GEOFENCE_STATIONARY = 10, STOP_ENTER_DURATION = 10000, STOP_EXIT_DISTANCE = 15, MIN_POINT_INTERVAL = 3000, MIN_POINT_DISTANCE = 8, CONFIRM_STREAK = 4, HEADING_TOLERANCE = 55, KALMAN_PROCESS_NOISE = 4;
 let refLat = null, refLon = null, kalmanX, kalmanY, fixBuffer = [], lastConfirmedPoint = null, lastFilteredForBearing = null, bearingBuffer = [], movementStreak = 0, stopMode = false, stopAnchor = null, stillSince = null;
+let watcherId = null, webWatchId = null, map = null, polyline = null, activeRunIndex = null;
 
 function toLocalXY(lat, lon){ const x = (lon - refLon) * 111320 * Math.cos(refLat * Math.PI/180); const y = (lat - refLat) * 111320; return { x, y }; }
 function fromLocalXY(x, y){ return { lat: refLat + y/111320, lon: refLon + x/(111320*Math.cos(refLat*Math.PI/180)) }; }
@@ -131,9 +132,16 @@ function handleGpsFix(raw){
     const distFromAnchor = getDistance(stopAnchor, filtered);
     if(distFromAnchor >= STOP_EXIT_DISTANCE && movementStreak >= CONFIRM_STREAK){ stopMode = false; stillSince = null; lastConfirmedPoint = filtered; tempRun.points.push(filtered); movementStreak = 0; }
   }
+  
+  // Bereken live afstand voor lockscreen scherm
+  if(tempRun && tempRun.points.length > 1) {
+    let tDist = 0;
+    for(let i=1; i<tempRun.points.length; i++) { tDist += getDistance(tempRun.points[i-1], tempRun.points[i]); }
+    document.getElementById("lockDist").innerText = (tDist / 1000).toFixed(2) + " km";
+  }
 }
 
-/* === NIEUWE LOGICA (Background Geolocation) === */
+/* === RUN CONTROLS & BACKGROUND GEOLOCATION === */
 async function startRun() {
   running = true;
   document.getElementById("btn").innerText = "STOP";
@@ -141,65 +149,231 @@ async function startRun() {
   tempRun = { start: startTime, points: [] };
   refLat = null; refLon = null; kalmanX = makeKalman(); kalmanY = makeKalman(); fixBuffer = []; lastConfirmedPoint = null; lastFilteredForBearing = null; bearingBuffer = []; movementStreak = 0; stopMode = false; stopAnchor = null; stillSince = null;
 
-  // Gebruik de Capacitor plugin via window
-  const BackgroundGeolocation = window.Capacitor.Plugins.BackgroundGeolocation;
-  
-  if (BackgroundGeolocation) {
-    await BackgroundGeolocation.addWatcher({
-        backgroundMessage: "RunFlow is bezig met tracken...",
-        backgroundTitle: "RunFlow sessie actief",
-        requestPermissions: true,
-        stale: false,
-        distanceFilter: 0 
-    }, (location, error) => {
-        if (error) return;
+  const Capacitor = window.Capacitor;
+  if (Capacitor && Capacitor.Plugins && Capacitor.Plugins.BackgroundGeolocation) {
+    const BackgroundGeolocation = Capacitor.Plugins.BackgroundGeolocation;
+    try {
+      watcherId = await BackgroundGeolocation.addWatcher({
+          backgroundMessage: "RunFlow is bezig met tracken...",
+          backgroundTitle: "RunFlow sessie actief",
+          requestPermissions: true,
+          stale: false,
+          distanceFilter: 0 
+      }, (location, error) => {
+          if (error) return;
+          handleGpsFix({
+              lat: location.latitude,
+              lon: location.longitude,
+              accuracy: location.accuracy,
+              speed: location.speed,
+              heading: location.bearing,
+              timestamp: location.time
+          });
+      });
+    } catch (e) {
+      console.error("Native background tracking starten mislukt", e);
+    }
+  } else {
+    // Web browser fallback voor lokaal testen
+    webWatchId = navigator.geolocation.watchPosition((pos) => {
         handleGpsFix({
-            lat: location.latitude,
-            lon: location.longitude,
-            accuracy: location.accuracy,
-            speed: location.speed,
-            heading: location.bearing,
-            timestamp: location.time
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+            speed: pos.coords.speed,
+            heading: pos.coords.heading,
+            timestamp: pos.timestamp
         });
-    });
+    }, (err) => console.error(err), { enableHighAccuracy: true });
   }
 
   interval = setInterval(()=>{
-    const elapsed = Date.now()-startTime;
-    document.getElementById("timer").innerText = formatTime(elapsed);
+    const elapsed = Date.now() - startTime;
+    const timeStr = formatTime(elapsed);
+    document.getElementById("timer").innerText = timeStr;
+    document.getElementById("lockTime").innerText = timeStr;
   }, 1000);
+  
+  document.getElementById("lockBtn").style.display = "block";
 }
 
-function toggleRun(){
+async function toggleRun(){
   if(!running){
     startRun();
   } else {
     running = false;
     clearInterval(interval);
     
-    // Stop de watcher
-    const BackgroundGeolocation = window.Capacitor.Plugins.BackgroundGeolocation;
-    if (BackgroundGeolocation) {
-        BackgroundGeolocation.removeAllWatchers();
+    // Stop de actieve watchers safely
+    const Capacitor = window.Capacitor;
+    if (Capacitor && Capacitor.Plugins && Capacitor.Plugins.BackgroundGeolocation && watcherId) {
+        await Capacitor.Plugins.BackgroundGeolocation.removeWatcher({ id: watcherId });
+        watcherId = null;
+    }
+    if (webWatchId !== null) {
+        navigator.geolocation.clearWatch(webWatchId);
+        webWatchId = null;
     }
     
     tempRun.end = Date.now();
     let runs = JSON.parse(localStorage.getItem("runs")||"[]");
     runs.unshift(tempRun);
     localStorage.setItem("runs", JSON.stringify(runs));
+    
     document.getElementById("btn").innerText = "START";
     document.getElementById("timer").innerText = "00:00:00";
+    document.getElementById("lockBtn").style.display = "none";
     nav("routes");
   }
 }
 
-/* Rest van je UI logica (nav, loadRuns, etc) */
+/* === NAVIGATION & UI FLOW === */
 function nav(screen){
   document.querySelectorAll(".screen").forEach(x=>x.classList.remove("active"));
-  document.getElementById(screen).classList.add("active");
-  // ... rest van je nav functie
+  const target = document.getElementById(screen);
+  if(target) target.classList.add("active");
+  
+  // Update header knoppen op basis van het geopende scherm
+  document.getElementById("navBtn").innerText = (screen === "run") ? "Routes" : "Home";
+  document.getElementById("importBtn").style.display = (screen === 'routes') ? 'block' : 'none';
+  document.getElementById("exportBtn").style.display = (screen === 'view') ? 'block' : 'none';
+  document.getElementById("deleteBtn").style.display = (screen === 'view') ? 'block' : 'none';
+  
+  if(screen === "routes") loadRuns();
 }
-// (Zorg dat je je overige functies zoals 'loadRuns', 'showRun' hieronder laat staan)
+
+document.getElementById("navBtn").onclick = () => {
+  const current = document.querySelector(".screen.active").id;
+  if(current === "run") {
+    nav("routes");
+  } else {
+    document.getElementById("info").style.display = "none";
+    nav("run");
+  }
+};
+
+/* === HISTORIE & KAART RENDEREN === */
+function loadRuns(){
+  const listEl = document.getElementById("list");
+  listEl.innerHTML = "";
+  let runs = JSON.parse(localStorage.getItem("runs")||"[]");
+  if(runs.length === 0) {
+    listEl.innerHTML = "<div style='text-align:center; opacity:0.5; margin-top:20px;'>Nog geen hardloopsessies.</div>";
+    return;
+  }
+  runs.forEach((run, index) => {
+    const item = document.createElement("div");
+    item.className = "item";
+    const date = new Date(run.start).toLocaleDateString();
+    const duration = formatTime(run.end - run.start);
+    item.innerHTML = `<span>Sessie ${runs.length - index} (${date})</span><span>${duration}</span>`;
+    item.onclick = () => showRun(index);
+    listEl.appendChild(item);
+  });
+}
+
+function showRun(index){
+  activeRunIndex = index;
+  let runs = JSON.parse(localStorage.getItem("runs")||"[]");
+  const run = runs[index];
+  nav("view");
+  
+  if(!map) {
+    map = L.map('routeMap', { zoomControl: false }).setView([0,0], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+    polyline = L.polyline([], {color: '#4ade80', weight: 5}).addTo(map);
+  }
+  
+  if(run.points && run.points.length > 0) {
+    const latlngs = run.points.map(p => [p.lat, p.lon]);
+    polyline.setLatLngs(latlngs);
+    map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+  } else {
+    polyline.setLatLngs([]);
+  }
+  
+  let totalDist = 0;
+  for(let i=1; i<run.points.length; i++) { totalDist += getDistance(run.points[i-1], run.points[i]); }
+  
+  document.getElementById("info").style.display = "block";
+  document.getElementById("info").innerHTML = `
+    <strong>Datum:</strong> ${new Date(run.start).toLocaleString()}<br>
+    <strong>Duur:</strong> ${formatTime(run.end - run.start)}<br>
+    <strong>Afstand:</strong> ${(totalDist/1000).toFixed(2)} km<br>
+    <strong>Gefilterde GPS Punten:</strong> ${run.points.length}
+  `;
+}
+
+/* === EXTRA DATA INTERACTIE (Delete, Export, Import) === */
+document.getElementById("deleteBtn").onclick = () => {
+  if(activeRunIndex !== null && confirm("Sessie definitief verwijderen?")) {
+    let runs = JSON.parse(localStorage.getItem("runs")||"[]");
+    runs.splice(activeRunIndex, 1);
+    localStorage.setItem("runs", JSON.stringify(runs));
+    document.getElementById("info").style.display = "none";
+    nav("routes");
+  }
+};
+
+document.getElementById("exportBtn").onclick = () => {
+  if(activeRunIndex !== null) {
+    let runs = JSON.parse(localStorage.getItem("runs")||"[]");
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(runs[activeRunIndex]));
+    const dlAnchor = document.createElement('a');
+    dlAnchor.setAttribute("href", dataStr);
+    dlAnchor.setAttribute("download", `runflow-run-${runs[activeRunIndex].start}.json`);
+    document.body.appendChild(dlAnchor);
+    dlAnchor.click();
+    dlAnchor.remove();
+  }
+};
+
+document.getElementById("importBtn").onclick = () => { document.getElementById("importFile").click(); };
+document.getElementById("importFile").onchange = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try {
+      const run = JSON.parse(evt.target.result);
+      if(!run.start || !run.points) throw new Error();
+      let runs = JSON.parse(localStorage.getItem("runs")||"[]");
+      runs.unshift(run);
+      localStorage.setItem("runs", JSON.stringify(runs));
+      loadRuns();
+    } catch(err) {
+      alert("Ongeldig RunFlow JSON bestand.");
+    }
+  };
+  reader.readAsText(file);
+};
+
+/* === SLIDE TO UNLOCK OVERLAY === */
+const handle = document.getElementById("slideHandle");
+const track = document.getElementById("slideTrack");
+let isDragging = false, startX = 0;
+
+document.getElementById("lockBtn").onclick = () => { document.getElementById("lockOverlay").classList.add("active"); };
+
+if(handle) {
+  handle.addEventListener("touchstart", (e) => { isDragging = true; startX = e.touches[0].clientX; });
+  window.addEventListener("touchmove", (e) => {
+    if(!isDragging) return;
+    let deltaX = e.touches[0].clientX - startX;
+    const maxDelta = track.clientWidth - handle.clientWidth - 8;
+    if(deltaX < 0) deltaX = 0;
+    if(deltaX > maxDelta) deltaX = maxDelta;
+    handle.style.transform = `translateX(${deltaX}px)`;
+    if(deltaX >= maxDelta) {
+      isDragging = false;
+      handle.style.transform = "translateX(0px)";
+      document.getElementById("lockOverlay").classList.remove("active");
+    }
+  });
+  window.addEventListener("touchend", () => { isDragging = false; handle.style.transform = "translateX(0px)"; });
+}
+
+// Start op het hoofdscherm
 nav("run");
 </script>
 </body>
